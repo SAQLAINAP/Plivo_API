@@ -9,6 +9,7 @@ A professional demo IVR system demonstrating Plivo's inbound/outbound voice capa
 - **Outbound Dialing**: Instantly trigger calls to any number worldwide.
 - **Multi-Country Support**: Dropdown with top 25 countries and flags (🇺🇸, 🇮🇳, 🇬🇧, etc.).
 - **Interactive IVR**: Multi-level menu handling (Language Selection -> Action).
+- **Robust Error Handling**: Gracefully manages invalid inputs or timeouts (Retry Once -> Hangup policy).
 - **Live Call Logic**: Flask backend handling webhooks, DTMF inputs, and XML generation.
 - **Responsive UI**: Neobrutalism-inspired, mobile-friendly interface built with standard HTML/CSS.
 
