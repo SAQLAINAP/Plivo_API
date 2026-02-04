@@ -60,7 +60,9 @@ Ensure you have `english.mp3` and `spanish.mp3` in the `audio/` directory.
 
 ## 🧪 Testing the Flow
 
-![In-Call Screenshot](misc/phone_call.jpg)
+## 🧪 Testing the Flow
+
+<img src="misc/phone_call.jpg" width="300" alt="In-Call Screenshot" style="border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
 
 1.  **Enter Number**: Select your country code (e.g., +91 for India) and enter your mobile number.
 2.  **Click Call**: The system will initiate a call via Plivo API.
