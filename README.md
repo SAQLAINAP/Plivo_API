@@ -2,7 +2,7 @@
 
 A professional demo IVR system demonstrating Plivo's inbound/outbound voice capabilities with a Flask backend and a clean, responsive frontend.
 
-![Plivo Demo Screenshot](https://via.placeholder.com/800x400?text=Plivo+Voice+Demo+UI)
+![Plivo Demo Web Interface](misc/webpage.png)
 
 ## 🚀 Features
 - **Outbound Dialing**: Instantly trigger calls to any number worldwide.
@@ -59,6 +59,8 @@ Ensure you have `english.mp3` and `spanish.mp3` in the `audio/` directory.
     > **http://localhost:5000**
 
 ## 🧪 Testing the Flow
+
+![In-Call Screenshot](misc/phone_call.jpg)
 
 1.  **Enter Number**: Select your country code (e.g., +91 for India) and enter your mobile number.
 2.  **Click Call**: The system will initiate a call via Plivo API.
