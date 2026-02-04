@@ -311,33 +311,45 @@
             <h2 id="dialer-heading" class="sr-only" style="display:none;">Dialer Interface</h2>
             <label for="phoneNumber">Target Phone Number</label>
             <div class="input-row">
-                <select id="countryCode" aria-label="Select Country Code">
-                    <option value="1">🇺🇸 +1 United States</option>
-                    <option value="91" selected>🇮🇳 +91 India</option>
-                    <option value="44">🇬🇧 +44 United Kingdom</option>
-                    <option value="1">🇨🇦 +1 Canada</option>
-                    <option value="61">🇦🇺 +61 Australia</option>
-                    <option value="81">🇯🇵 +81 Japan</option>
-                    <option value="49">🇩🇪 +49 Germany</option>
-                    <option value="33">🇫🇷 +33 France</option>
-                    <option value="39">🇮🇹 +39 Italy</option>
-                    <option value="34">🇪🇸 +34 Spain</option>
-                    <option value="55">🇧🇷 +55 Brazil</option>
-                    <option value="52">🇲🇽 +52 Mexico</option>
-                    <option value="86">🇨🇳 +86 China</option>
-                    <option value="7">🇷🇺 +7 Russia</option>
-                    <option value="82">🇰🇷 +82 South Korea</option>
-                    <option value="65">🇸🇬 +65 Singapore</option>
-                    <option value="31">🇳🇱 +31 Netherlands</option>
-                    <option value="46">🇸🇪 +46 Sweden</option>
-                    <option value="41">🇨🇭 +41 Switzerland</option>
-                    <option value="971">🇦🇪 +971 UAE</option>
-                    <option value="966">🇸🇦 +966 Saudi Arabia</option>
-                    <option value="27">🇿🇦 +27 South Africa</option>
-                    <option value="90">🇹🇷 +90 Turkey</option>
-                    <option value="62">🇮🇩 +62 Indonesia</option>
-                    <option value="60">🇲🇾 +60 Malaysia</option>
-                </select>
+                <div id="selectWrapper" style="width: 100%; max-width: 180px;">
+                    <select id="countryCode" aria-label="Select Country Code" onchange="checkManualInput(this)">
+                        <option value="1">🇺🇸 +1 United States</option>
+                        <option value="91" selected>🇮🇳 +91 India</option>
+                        <option value="44">🇬🇧 +44 United Kingdom</option>
+                        <option value="1">🇨🇦 +1 Canada</option>
+                        <option value="61">🇦🇺 +61 Australia</option>
+                        <option value="81">🇯🇵 +81 Japan</option>
+                        <option value="49">🇩🇪 +49 Germany</option>
+                        <option value="33">🇫🇷 +33 France</option>
+                        <option value="39">🇮🇹 +39 Italy</option>
+                        <option value="34">🇪🇸 +34 Spain</option>
+                        <option value="55">🇧🇷 +55 Brazil</option>
+                        <option value="52">🇲🇽 +52 Mexico</option>
+                        <option value="86">🇨🇳 +86 China</option>
+                        <option value="7">🇷🇺 +7 Russia</option>
+                        <option value="82">🇰🇷 +82 South Korea</option>
+                        <option value="65">🇸🇬 +65 Singapore</option>
+                        <option value="31">🇳🇱 +31 Netherlands</option>
+                        <option value="46">🇸🇪 +46 Sweden</option>
+                        <option value="41">🇨🇭 +41 Switzerland</option>
+                        <option value="971">🇦🇪 +971 UAE</option>
+                        <option value="966">🇸🇦 +966 Saudi Arabia</option>
+                        <option value="27">🇿🇦 +27 South Africa</option>
+                        <option value="90">🇹🇷 +90 Turkey</option>
+                        <option value="62">🇮🇩 +62 Indonesia</option>
+                        <option value="60">🇲🇾 +60 Malaysia</option>
+                        <option value="custom" style="font-weight: bold;">🖊️ Manual Entry</option>
+                    </select>
+                </div>
+
+                <div id="manualWrapper" style="display: none; width: 100%; max-width: 180px; position: relative;">
+                    <input type="number" id="manualCode" placeholder="Code (e.g. 91)" aria-label="Manual Country Code"
+                        style="padding-right: 2rem;">
+                    <button type="button" onclick="toggleManualInput(false)"
+                        style="position: absolute; right: 5px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 0; width: auto; color: var(--text-muted); cursor: pointer;"
+                        aria-label="Close Manual Entry">✖</button>
+                </div>
+
                 <input type="tel" id="phoneNumber" placeholder="9876543210" aria-label="Phone Number"
                     autocomplete="tel">
                 <button id="callBtn" onclick="initiateCall()" aria-label="Initiate Call">
@@ -397,8 +409,43 @@
     </div>
 
     <script>
+        function checkManualInput(select) {
+            if (select.value === 'custom') {
+                toggleManualInput(true);
+            }
+        }
+
+        function toggleManualInput(show) {
+            const selectWrapper = document.getElementById('selectWrapper');
+            const manualWrapper = document.getElementById('manualWrapper');
+            const manualInput = document.getElementById('manualCode');
+            const select = document.getElementById('countryCode');
+
+            if (show) {
+                selectWrapper.style.display = 'none';
+                manualWrapper.style.display = 'block';
+                manualInput.focus();
+            } else {
+                manualWrapper.style.display = 'none';
+                selectWrapper.style.display = 'block';
+                select.value = '91'; // Reset to default
+                manualInput.value = '';
+            }
+        }
+
         async function initiateCall() {
-            const countryCode = document.getElementById('countryCode').value;
+            let countryCode = document.getElementById('countryCode').value;
+            const manualCode = document.getElementById('manualCode').value;
+
+            // Use manual code if custom is selected/visible
+            if (document.getElementById('manualWrapper').style.display === 'block') {
+                if (!manualCode) {
+                    showStatus('Please enter a country code.', true);
+                    return;
+                }
+                countryCode = manualCode;
+            }
+
             const phoneInput = document.getElementById('phoneNumber');
             const callBtn = document.getElementById('callBtn');
             const statusBox = document.getElementById('statusBox');
