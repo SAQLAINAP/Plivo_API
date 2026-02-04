@@ -29,6 +29,12 @@ client = plivo.RestClient(PLIVO_AUTH_ID, PLIVO_AUTH_TOKEN)
 # Placeholder Associate Number (Demo)
 ASSOCIATE_NUMBER = "14692463990" 
 
+def get_attempt():
+    try:
+        return int(request.args.get("attempt", "1"))
+    except:
+        return 1 
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -62,22 +68,22 @@ def initiate_call():
         return f"Failed to initiate call: {str(e)}", 500
 
 # --- IVR LEVEL 1: Language Selection ---
+# --- IVR LEVEL 1: Language Selection ---
 @app.route('/ivr/level1', methods=['GET', 'POST'])
 def ivr_level1():
     """
     Level 1 Menu: Select Language.
     """
-    retry = int(request.args.get('retry', 0))
+    attempt = get_attempt()
     resp = Response()
     
-    # GetDigits with manual retry handling (retries=0)
-    # We pass the current retry count to the handler
+    # GetDigits to capture input
     get_digits = GetDigits(
-        action=f"{NGROK_URL}/ivr/level2_handler?retry={retry}",
+        action=f"{NGROK_URL}/ivr/level2_handler?attempt={attempt}",
         method='POST',
         timeout=7,
         num_digits=1,
-        retries=0, 
+        retries=1,
         redirect=True 
     )
     
@@ -85,21 +91,19 @@ def ivr_level1():
     
     resp.add(get_digits)
     
-    # If we get here, it means GetDigits timed out/failed in a way that didn't redirect (fallback)
-    # But with redirect=True, it should hit the handler. 
-    # Just in case, we add a fallback redirect/hangup logic here? 
-    # Actually, Plivo executes the next element if no API trigger happening.
-    # But redirect=True forces the API hit.
-    
-    # However, if no input is entered, GetDigits might fall through if redirect is NOT triggered 
-    # (though docs say redirect=True trumps).
-    # To be safe, we will let the handler catch the "No Input" case via the action URL.
+    # NO INPUT HANDLING
+    if attempt == 1:
+        resp.add(Speak("No selection detected. Repeating the menu."))
+        resp.add(Redirect(f"{NGROK_URL}/ivr/level1?attempt=2"))
+    else:
+        resp.add(Speak("No response received. Goodbye."))
     
     xml_str = resp.to_string()
-    print(f"DEBUG XML /ivr/level1 (retry={retry}):\n{xml_str}")
+    print(f"DEBUG XML /ivr/level1:\n{xml_str}")
     
     return app.response_class(xml_str, mimetype='application/xml')
 
+# --- IVR LEVEL 2 HANDLER: Route based on Language ---
 # --- IVR LEVEL 2 HANDLER: Route based on Language ---
 @app.route('/ivr/level2_handler', methods=['POST'])
 def ivr_level2_handler():
@@ -107,48 +111,43 @@ def ivr_level2_handler():
     Handles input from Level 1 and directs to Level 2 Menu.
     """
     digit = request.form.get('Digits')
-    retry = int(request.args.get('retry', 0))
-    print(f"DEBUG: Level 1 Input: '{digit}', Retry: {retry}")
+    attempt = get_attempt()
+    print(f"DEBUG: Level 1 Input Received: {digit} (Attempt: {attempt})")
     
-    resp = Response()
-
-    # Case 1: Valid Input
     if digit == '1':
-        return ivr_level2_menu(language="english")
+        # Valid: Redirect to Level 2 Menu (English), Reset attempt to 1
+        resp = Response()
+        resp.add(Redirect(f"{NGROK_URL}/ivr/level2_menu?lang=english&attempt=1"))
+        return app.response_class(resp.to_string(), mimetype='application/xml')
     elif digit == '2':
-        return ivr_level2_menu(language="spanish")
-    
-    # Error Handling Logic
-    if not digit:
-        # Case 2: No Input (Timeout)
-        message = "Nothing selected."
+        # Valid: Redirect to Level 2 Menu (Spanish), Reset attempt to 1
+        resp = Response()
+        resp.add(Redirect(f"{NGROK_URL}/ivr/level2_menu?lang=spanish&attempt=1"))
+        return app.response_class(resp.to_string(), mimetype='application/xml')
     else:
-        # Case 3: Invalid Input (Wrong Digit)
-        message = "Invalid selection."
-    
-    if retry < 1:
-        # First Failure: Warn and Retry
-        resp.add(Speak(f"{message} Please try again."))
-        resp.add(Redirect(f"{NGROK_URL}/ivr/level1?retry=1"))
-    else:
-        # Second Failure: Goodbye and Cut
-        resp.add(Speak("No response. Goodbye."))
-        # Plivo will hangup automatically after xml ends, or we can explicit Hangup
-    
-    return app.response_class(resp.to_string(), mimetype='application/xml')
+        # Invalid: Retry logic
+        resp = Response()
+        if attempt == 1:
+            resp.add(Speak("Invalid selection. Please try again."))
+            resp.add(Redirect(f"{NGROK_URL}/ivr/level1?attempt=2"))
+        else:
+            resp.add(Speak("Invalid input again. Goodbye."))
+        return app.response_class(resp.to_string(), mimetype='application/xml')
 
-def ivr_level2_menu(language, retry=0):
+@app.route('/ivr/level2_menu', methods=['GET', 'POST'])
+def ivr_level2_menu():
+    language = request.args.get('lang', 'english')
+    attempt = get_attempt()
     resp = Response()
     
-    # Pass retry count to the action handler
-    action_url = f"{NGROK_URL}/ivr/action_handler?lang={language}&retry={retry}"
+    action_url = f"{NGROK_URL}/ivr/action_handler?lang={language}&attempt={attempt}"
     
     get_digits = GetDigits(
         action=action_url,
         method='POST',
-        timeout=7,
+        timeout=5,
         num_digits=1,
-        retries=0, # Manual handling
+        retries=1,
         redirect=True
     )
     
@@ -159,11 +158,18 @@ def ivr_level2_menu(language, retry=0):
         
     resp.add(get_digits)
     
+    if attempt == 1:
+        resp.add(Speak("No selection detected. Repeating the menu."))
+        resp.add(Redirect(f"{NGROK_URL}/ivr/level2_menu?lang={language}&attempt=2"))
+    else:
+        resp.add(Speak("No response received. Goodbye."))
+    
     xml_str = resp.to_string()
-    print(f"DEBUG XML Level 2 ({language}, retry={retry}):\n{xml_str}")
+    print(f"DEBUG XML Level 2 ({language}):\n{xml_str}")
     
     return app.response_class(xml_str, mimetype='application/xml')
 
+# --- IVR ACTION HANDLER ---
 # --- IVR ACTION HANDLER ---
 @app.route('/ivr/action_handler', methods=['POST'])
 def ivr_action_handler():
@@ -172,20 +178,17 @@ def ivr_action_handler():
     """
     digit = request.form.get('Digits')
     language = request.args.get('lang', 'english')
-    retry = int(request.args.get('retry', 0))
-    
-    print(f"DEBUG: Action Input: '{digit}' (Lang: {language}, Retry: {retry})")
+    attempt = get_attempt()
+    print(f"DEBUG: Action Input Received: {digit} (Lang: {language}, Attempt: {attempt})")
     
     resp = Response()
     
-    # Case 1: Valid Input
     if digit == '1':
         # Action: Play Audio
         audio_url = f"{NGROK_URL}/public/audio/{language}.mp3"
         print(f"DEBUG: Playing audio from {audio_url}")
         resp.add(Play(audio_url))
         resp.add(Speak("Thank you for listening. Goodbye."))
-        return app.response_class(resp.to_string(), mimetype='application/xml')
         
     elif digit == '2':
         # Action: Forward to Associate
@@ -193,64 +196,18 @@ def ivr_action_handler():
         dial = Dial()
         dial.add(Number(ASSOCIATE_NUMBER))
         resp.add(dial)
-        return app.response_class(resp.to_string(), mimetype='application/xml')
-
-    # Error Handling Logic
-    if not digit:
-        # Case 2: No Input (Timeout)
-        if language == "english":
-            message = "Nothing selected."
-        else:
-            message = "Nada seleccionado." # Simple Translation
-    else:
-        # Case 3: Invalid Input
-        if language == "english":
-            message = "Invalid selection."
-        else:
-            message = "Selección inválida."
-
-    if retry < 1:
-        # First Failure: Warn and Retry
-        if language == "english":
-             resp.add(Speak(f"{message} Please try again."))
-        else:
-             resp.add(Speak(f"{message} Por favor intente de nuevo.", language="es-US"))
-             
-        # Re-render Level 2 Menu with retry=1
-        # Since ivr_level2_menu is a function returning a response object, 
-        # we can't just Redirect to a definition.
-        # But we can Redirect to a new route that calls it, OR just render it here.
-        # Using Redirect is cleaner for flow flow control, but requires a route.
-        # Let's just create a quick Redirect to a helper route or just recurse via Redirect element?
-        # Actually, ivr_level2_menu isn't a route, it's a helper.
-        # We need a route 'ivr_level2' to redirect to?
-        # Simpler: We are in 'action_handler'. We cannot "Call" a function to generate XML for the user's *next* step unless we output that XML now.
-        # YES, we can just output the Menu XML directly here!
-        
-        # HOWEVER, the User pattern suggests Redirect is better to keep URL state clean.
-        # Let's make a route for Level 2 Menu Display to allow redirection:
-        resp.add(Redirect(f"{NGROK_URL}/ivr/level2_show?lang={language}&retry=1"))
         
     else:
-        # Second Failure
-        if language == "english":
-            resp.add(Speak("No response. Goodbye."))
+        # Invalid Input Handling
+        if attempt == 1:
+            resp.add(Speak("Invalid selection. Please try again."))
+            resp.add(Redirect(f"{NGROK_URL}/ivr/level2_menu?lang={language}&attempt=2"))
         else:
-            resp.add(Speak("Sin respuesta. Adiós.", language="es-US"))
-    
+            resp.add(Speak("Invalid input again. Goodbye."))
+
     xml_str = resp.to_string()
+    print(f"DEBUG XML Action:\n{xml_str}")
     return app.response_class(xml_str, mimetype='application/xml')
-
-# Helper Route to display Level 2 (allows Redirect logic)
-@app.route('/ivr/level2_show', methods=['GET', 'POST'])
-def ivr_level2_show():
-    language = request.args.get('lang', 'english')
-    retry = int(request.args.get('retry', 0))
-    return ivr_level2_menu(language, retry)
-
-def ivr_level2_retry(language): 
-    # Deprecated by new logic, removing
-    pass
 
 
 # --- Serve Static Audio ---
